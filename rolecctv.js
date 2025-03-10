@@ -344,7 +344,7 @@ async function printStats(db) {
 }
 
 function setupAutomaticSnapshots(db) {
-  const SNAPSHOT_INTERVAL = 4000 * 60 * 60// 4 час в миллисекундах
+  const SNAPSHOT_INTERVAL = 10000 // 4 час в миллисекундах
   
   console.log(`Настройка автоматического создания снапшотов каждые 4 часа`);
   
