@@ -30,15 +30,6 @@ const CHANNEL_IDS = [
   "1339134460519518259"
 ];
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers,
-  ],
-});
-
 async function initDatabase() {
   console.log("Инициализация базы данных...");
   
@@ -353,7 +344,7 @@ async function printStats(db) {
 }
 
 function setupAutomaticSnapshots(db) {
-  const SNAPSHOT_INTERVAL = 1000 * 60 * 60 * 4; // 4 час в миллисекундах
+  const SNAPSHOT_INTERVAL = 10000 // 4 час в миллисекундах
   
   console.log(`Настройка автоматического создания снапшотов каждые 4 часа`);
   

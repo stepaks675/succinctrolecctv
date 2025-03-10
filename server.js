@@ -1,8 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import { Client, GatewayIntentBits, Events } from "discord.js";
-import sqlite3 from "sqlite3";
-import { open } from "sqlite";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from 'dotenv';
@@ -10,7 +8,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, "role_monitoring.db");
+const DB_PATH = "/app/data/role_monitoring.db";
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.API_KEY || 'default-api-key';
 
@@ -146,21 +144,6 @@ app.get('/api/snapshots/:id/users/:userId', apiKeyAuth, async (req, res) => {
   } catch (error) {
     console.error(`Error fetching user data: ${error.message}`);
     res.status(500).json({ error: 'Failed to fetch user data' });
-  }
-});
-
-// Create a new snapshot
-app.post('/api/snapshots', apiKeyAuth, async (req, res) => {
-  try {
-    const result = await createSnapshot(db);
-    if (result) {
-      res.status(201).json(result);
-    } else {
-      res.status(500).json({ error: 'Failed to create snapshot' });
-    }
-  } catch (error) {
-    console.error(`Error creating snapshot: ${error.message}`);
-    res.status(500).json({ error: 'Failed to create snapshot' });
   }
 });
 
