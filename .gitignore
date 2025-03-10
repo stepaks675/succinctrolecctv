@@ -1,0 +1,5 @@
+/.env
+/node_modules
+/role_monitoring.db
+/role_monitoring.db-shm
+/role_monitoring.db-wal

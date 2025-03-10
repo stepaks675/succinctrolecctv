@@ -1,0 +1,223 @@
+import express from 'express';
+import cors from 'cors';
+import { Client, GatewayIntentBits, Events } from "discord.js";
+import sqlite3 from "sqlite3";
+import { open } from "sqlite";
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DB_PATH = path.join(__dirname, "role_monitoring.db");
+const PORT = process.env.PORT || 3000;
+const API_KEY = process.env.API_KEY || 'default-api-key';
+
+// Initialize Express app
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Simple API key middleware for protection
+const apiKeyAuth = (req, res, next) => {
+  const providedKey = req.headers['x-api-key'];
+  if (!providedKey || providedKey !== API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid API key' });
+  }
+  next();
+};
+
+// Import your existing bot code
+import { 
+  TARGET_ROLES, 
+  CHANNEL_IDS, 
+  initDatabase, 
+  hasTargetRole, 
+  getUserRoles, 
+  processMessage, 
+  getRoleUserStats, 
+  getUserChannelStats, 
+  createSnapshot, 
+  cleanupOldSnapshots, 
+  printStats, 
+  setupAutomaticSnapshots 
+} from './rolecctv.js';
+
+let db;
+
+// API Routes
+app.get('/', (req, res) => {
+  res.json({ status: 'Discord Bot API is running' });
+});
+
+// Get all snapshots
+app.get('/api/snapshots', apiKeyAuth, async (req, res) => {
+  try {
+    const snapshots = await db.all(`
+      SELECT id, name, created_at, 
+      (SELECT COUNT(*) FROM snapshot_data WHERE snapshot_id = snapshots.id) as record_count
+      FROM snapshots
+      ORDER BY created_at DESC
+    `);
+    
+    res.json(snapshots);
+  } catch (error) {
+    console.error(`Error fetching snapshots: ${error.message}`);
+    res.status(500).json({ error: 'Failed to fetch snapshots' });
+  }
+});
+
+// Get snapshot by ID
+app.get('/api/snapshots/:id', apiKeyAuth, async (req, res) => {
+  try {
+    const snapshotId = req.params.id;
+    
+    // Get snapshot info
+    const snapshot = await db.get(`
+      SELECT id, name, created_at
+      FROM snapshots
+      WHERE id = ?
+    `, [snapshotId]);
+    
+    if (!snapshot) {
+      return res.status(404).json({ error: 'Snapshot not found' });
+    }
+    
+    // Get snapshot data
+    const data = await db.all(`
+      SELECT 
+        user_id, 
+        username, 
+        roles,
+        SUM(message_count) as total_messages
+      FROM snapshot_data
+      WHERE snapshot_id = ?
+      GROUP BY user_id
+      ORDER BY total_messages DESC
+    `, [snapshotId]);
+    
+    res.json({
+      snapshot,
+      data
+    });
+  } catch (error) {
+    console.error(`Error fetching snapshot data: ${error.message}`);
+    res.status(500).json({ error: 'Failed to fetch snapshot data' });
+  }
+});
+
+// Get user details from a snapshot
+app.get('/api/snapshots/:id/users/:userId', apiKeyAuth, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    
+    // Get user info
+    const user = await db.get(`
+      SELECT 
+        user_id, 
+        username, 
+        roles,
+        SUM(message_count) as total_messages
+      FROM snapshot_data
+      WHERE snapshot_id = ? AND user_id = ?
+      GROUP BY user_id
+    `, [id, userId]);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found in this snapshot' });
+    }
+    
+    // Get user's channel activity
+    const channels = await db.all(`
+      SELECT 
+        channel_id,
+        channel_name,
+        message_count
+      FROM snapshot_data
+      WHERE snapshot_id = ? AND user_id = ?
+      ORDER BY message_count DESC
+    `, [id, userId]);
+    
+    res.json({
+      user,
+      channels
+    });
+  } catch (error) {
+    console.error(`Error fetching user data: ${error.message}`);
+    res.status(500).json({ error: 'Failed to fetch user data' });
+  }
+});
+
+// Create a new snapshot
+app.post('/api/snapshots', apiKeyAuth, async (req, res) => {
+  try {
+    const result = await createSnapshot(db);
+    if (result) {
+      res.status(201).json(result);
+    } else {
+      res.status(500).json({ error: 'Failed to create snapshot' });
+    }
+  } catch (error) {
+    console.error(`Error creating snapshot: ${error.message}`);
+    res.status(500).json({ error: 'Failed to create snapshot' });
+  }
+});
+
+// Start the Discord bot and Express server
+async function main() {
+  try {
+    // Initialize database
+    db = await initDatabase();
+    
+    // Create Discord client
+    const client = new Client({
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers,
+      ],
+    });
+
+    client.once(Events.ClientReady, async () => {
+      console.log(`Bot ${client.user.tag} is ready!`);
+      console.log(`Monitoring roles: ${TARGET_ROLES.join(", ")}`);
+      console.log(`Monitoring channels: ${CHANNEL_IDS.length}`);
+      
+      await printStats(db);
+      setupAutomaticSnapshots(db);
+    });
+    
+    client.on(Events.MessageCreate, async (message) => {
+      await processMessage(db, message);
+    });
+    
+    client.on(Events.Error, (error) => {
+      console.error(`Discord client error: ${error.message}`);
+    });
+    
+    // Start Express server
+    app.listen(PORT, () => {
+      console.log(`Express server running on port ${PORT}`);
+    });
+    
+    // Handle graceful shutdown
+    process.on('SIGINT', async () => {
+      console.log('Received termination signal, creating final snapshot...');
+      await createSnapshot(db);
+      console.log('Shutting down...');
+      client.destroy();
+      process.exit(0);
+    });
+    
+    // Login to Discord
+    await client.login(process.env.DISCORD_TOKEN);
+    
+  } catch (error) {
+    console.error(`Critical error: ${error.message}`);
+    process.exit(1);
+  }
+}
+
+main(); 
