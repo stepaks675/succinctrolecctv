@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, "role_monitoring.db");
+const DB_PATH = path.join(__dirname, "/app/data/role_monitoring.db");
 const TARGET_ROLES = ["PROVED UR LUV", "Prover", "PROOF OF ART", "PROOF OF DEV", "PROOF OF MUSIC", "PROOF OF WRITING", "PROOF OF VIDEO"]; // Роли, которые нужно отслеживать
 
 const CHANNEL_IDS = [
