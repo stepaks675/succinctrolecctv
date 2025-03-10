@@ -31,11 +31,7 @@ import {
   TARGET_ROLES, 
   CHANNEL_IDS, 
   initDatabase, 
-  hasTargetRole, 
-  getUserRoles, 
   processMessage, 
-  getRoleUserStats, 
-  getUserChannelStats, 
   createSnapshot, 
   cleanupOldSnapshots, 
   printStats, 
@@ -49,29 +45,24 @@ app.get('/', (req, res) => {
   res.json({ status: 'Discord Bot API is running' });
 });
 
-// Get all snapshots
-app.get('/api/snapshots', apiKeyAuth, async (req, res) => {
-  try {
-    const snapshots = await db.all(`
-      SELECT id, name, created_at, 
-      (SELECT COUNT(*) FROM snapshot_data WHERE snapshot_id = snapshots.id) as record_count
-      FROM snapshots
-      ORDER BY created_at DESC
-    `);
-    
-    res.json(snapshots);
-  } catch (error) {
-    console.error(`Error fetching snapshots: ${error.message}`);
-    res.status(500).json({ error: 'Failed to fetch snapshots' });
-  }
-});
-
-// Get snapshot by ID
-app.get('/api/snapshots/:id', apiKeyAuth, async (req, res) => {
+// Get all snapshots or a specific snapshot with detailed user data
+app.get('/api/snapshots/:id?', apiKeyAuth, async (req, res) => {
   try {
     const snapshotId = req.params.id;
     
-    // Get snapshot info
+    // If no ID provided, return list of all snapshots
+    if (!snapshotId) {
+      const snapshots = await db.all(`
+        SELECT id, name, created_at, 
+        (SELECT COUNT(*) FROM snapshot_data WHERE snapshot_id = snapshots.id) as record_count
+        FROM snapshots
+        ORDER BY created_at DESC
+      `);
+      
+      return res.json(snapshots);
+    }
+    
+    // Get specific snapshot info
     const snapshot = await db.get(`
       SELECT id, name, created_at
       FROM snapshots
@@ -82,8 +73,8 @@ app.get('/api/snapshots/:id', apiKeyAuth, async (req, res) => {
       return res.status(404).json({ error: 'Snapshot not found' });
     }
     
-    // Get snapshot data
-    const data = await db.all(`
+    // Get user summary data for this snapshot
+    const users = await db.all(`
       SELECT 
         user_id, 
         username, 
@@ -95,55 +86,44 @@ app.get('/api/snapshots/:id', apiKeyAuth, async (req, res) => {
       ORDER BY total_messages DESC
     `, [snapshotId]);
     
-    res.json({
-      snapshot,
-      data
-    });
-  } catch (error) {
-    console.error(`Error fetching snapshot data: ${error.message}`);
-    res.status(500).json({ error: 'Failed to fetch snapshot data' });
-  }
-});
-
-// Get user details from a snapshot
-app.get('/api/snapshots/:id/users/:userId', apiKeyAuth, async (req, res) => {
-  try {
-    const { id, userId } = req.params;
-    
-    // Get user info
-    const user = await db.get(`
+    // Get channel activity for each user in a single query
+    const channelActivity = await db.all(`
       SELECT 
-        user_id, 
-        username, 
-        roles,
-        SUM(message_count) as total_messages
-      FROM snapshot_data
-      WHERE snapshot_id = ? AND user_id = ?
-      GROUP BY user_id
-    `, [id, userId]);
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found in this snapshot' });
-    }
-    
-    // Get user's channel activity
-    const channels = await db.all(`
-      SELECT 
+        user_id,
         channel_id,
         channel_name,
         message_count
       FROM snapshot_data
-      WHERE snapshot_id = ? AND user_id = ?
-      ORDER BY message_count DESC
-    `, [id, userId]);
+      WHERE snapshot_id = ?
+      ORDER BY user_id, message_count DESC
+    `, [snapshotId]);
+    
+    // Organize channel data by user
+    const userChannels = {};
+    channelActivity.forEach(activity => {
+      if (!userChannels[activity.user_id]) {
+        userChannels[activity.user_id] = [];
+      }
+      userChannels[activity.user_id].push({
+        channel_id: activity.channel_id,
+        channel_name: activity.channel_name,
+        message_count: activity.message_count
+      });
+    });
+    
+    // Add channel data to each user
+    const usersWithChannels = users.map(user => ({
+      ...user,
+      channels: userChannels[user.user_id] || []
+    }));
     
     res.json({
-      user,
-      channels
+      snapshot,
+      users: usersWithChannels
     });
   } catch (error) {
-    console.error(`Error fetching user data: ${error.message}`);
-    res.status(500).json({ error: 'Failed to fetch user data' });
+    console.error(`Error fetching snapshot data: ${error.message}`);
+    res.status(500).json({ error: 'Failed to fetch snapshot data' });
   }
 });
 
