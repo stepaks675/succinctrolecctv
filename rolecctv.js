@@ -4,7 +4,7 @@ import { open } from "sqlite";
 import dotenv from 'dotenv';
 dotenv.config();
 
-const DB_PATH = "./app/data/role_monitoring.db";
+const DB_PATH = "/app/data/role_monitoring.db";
 const TARGET_ROLES = ["Super Prover", "Proofer", "PROVED UR LUV", "Prover", "PROOF OF ART", "PROOF OF DEV", "PROOF OF MUSIC", "PROOF OF WRITING", "PROOF OF VIDEO"]; // Роли, которые нужно отслеживать
 
 

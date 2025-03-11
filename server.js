@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 
-const DB_PATH = "./app/data/role_monitoring.db";
+const DB_PATH = "/app/data/role_monitoring.db";
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.API_KEY || 'default-api-key';
 
