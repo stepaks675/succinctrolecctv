@@ -12,7 +12,8 @@ const API_KEY = process.env.API_KEY || 'default-api-key';
 
 
 const app = express();
-app.use(cors());
+app.use(cors({origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE']}));
 app.use(express.json());
 
 
