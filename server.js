@@ -6,16 +6,16 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 
-const DB_PATH = "/app/data/role_monitoring.db";
+const DB_PATH = "./app/data/role_monitoring.db";
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.API_KEY || 'default-api-key';
 
-// Initialize Express app
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Simple API key middleware for protection
+
 const apiKeyAuth = (req, res, next) => {
   const providedKey = req.headers['x-api-key'];
   if (!providedKey || providedKey !== API_KEY) {
@@ -24,7 +24,7 @@ const apiKeyAuth = (req, res, next) => {
   next();
 };
 
-// Import your existing bot code
+
 import { 
   TARGET_ROLES, 
   initDatabase, 
@@ -37,17 +37,69 @@ import {
 
 let db;
 
-// API Routes
+
 app.get('/', (req, res) => {
   res.json({ status: 'Discord Bot API is running' });
 });
 
-// Get all snapshots or a specific snapshot with detailed user data
+
+app.delete('/api/snapshots/:id', apiKeyAuth, async (req, res) => {
+  try {
+    const snapshotId = parseInt(req.params.id);
+
+    const snapshot = await db.get(`
+      SELECT id FROM snapshots WHERE id = ?
+    `, [snapshotId]);
+    
+    if (!snapshot) {
+      return res.status(404).json({ error: 'Snapshot not found' });
+    }
+    
+
+    const maxIdResult = await db.get(`SELECT MAX(id) as maxId FROM snapshots`);
+    const isLastSnapshot = snapshotId === maxIdResult.maxId;
+    
+    await db.run("BEGIN TRANSACTION");
+    
+    try {
+      await db.run(`DELETE FROM snapshot_data WHERE snapshot_id = ?`, [snapshotId]);
+      
+      await db.run(`DELETE FROM snapshots WHERE id = ?`, [snapshotId]);
+      
+      if (isLastSnapshot) {
+        console.log(`Resetting autoincrement counter after deleting last snapshot (ID: ${snapshotId})`);
+        
+        const newMaxIdResult = await db.get(`SELECT MAX(id) as maxId FROM snapshots`);
+        const newMaxId = newMaxIdResult.maxId || 0;
+        
+        await db.run(`UPDATE sqlite_sequence SET seq = ? WHERE name = 'snapshots'`, [newMaxId]);
+        
+        console.log(`Autoincrement counter reset to ${newMaxId}`);
+      }
+      
+      await db.run("COMMIT");
+      
+      console.log(`Snapshot with ID ${snapshotId} has been deleted`);
+      res.json({ 
+        success: true, 
+        message: `Snapshot with ID ${snapshotId} has been deleted`,
+        autoIncrementReset: isLastSnapshot
+      });
+    } catch (error) {
+      await db.run("ROLLBACK");
+      console.error(`Error during snapshot deletion: ${error.message}`);
+      res.status(500).json({ error: 'Failed to delete snapshot' });
+    }
+  } catch (error) {
+    console.error(`Error deleting snapshot: ${error.message}`);
+    res.status(500).json({ error: 'Failed to delete snapshot' });
+  }
+});
+
 app.get('/api/snapshots/:id?', apiKeyAuth, async (req, res) => {
   try {
     const snapshotId = req.params.id;
     
-    // If no ID provided, return list of all snapshots
     if (!snapshotId) {
       const snapshots = await db.all(`
         SELECT id, name, created_at, 
@@ -59,7 +111,6 @@ app.get('/api/snapshots/:id?', apiKeyAuth, async (req, res) => {
       return res.json(snapshots);
     }
     
-    // Get specific snapshot info
     const snapshot = await db.get(`
       SELECT id, name, created_at
       FROM snapshots
@@ -70,7 +121,6 @@ app.get('/api/snapshots/:id?', apiKeyAuth, async (req, res) => {
       return res.status(404).json({ error: 'Snapshot not found' });
     }
     
-    // Get user summary data for this snapshot
     const users = await db.all(`
       SELECT 
         user_id, 
@@ -83,7 +133,6 @@ app.get('/api/snapshots/:id?', apiKeyAuth, async (req, res) => {
       ORDER BY total_messages DESC
     `, [snapshotId]);
     
-    // Get channel activity for each user in a single query
     const channelActivity = await db.all(`
       SELECT 
         user_id,
@@ -95,7 +144,6 @@ app.get('/api/snapshots/:id?', apiKeyAuth, async (req, res) => {
       ORDER BY user_id, message_count DESC
     `, [snapshotId]);
     
-    // Organize channel data by user
     const userChannels = {};
     channelActivity.forEach(activity => {
       if (!userChannels[activity.user_id]) {
@@ -108,7 +156,6 @@ app.get('/api/snapshots/:id?', apiKeyAuth, async (req, res) => {
       });
     });
     
-    // Add channel data to each user
     const usersWithChannels = users.map(user => ({
       ...user,
       channels: userChannels[user.user_id] || []
@@ -124,13 +171,13 @@ app.get('/api/snapshots/:id?', apiKeyAuth, async (req, res) => {
   }
 });
 
-// Start the Discord bot and Express server
+
 async function main() {
   try {
-    // Initialize database
+
     db = await initDatabase();
     
-    // Create Discord client
+
     const client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
@@ -156,12 +203,12 @@ async function main() {
       console.error(`Discord client error: ${error.message}`);
     });
     
-    // Start Express server
+
     app.listen(PORT, () => {
       console.log(`Express server running on port ${PORT}`);
     });
     
-    // Handle graceful shutdown
+  
     process.on('SIGINT', async () => {
       console.log('Received termination signal, creating final snapshot...');
       await createSnapshot(db);
@@ -170,7 +217,7 @@ async function main() {
       process.exit(0);
     });
     
-    // Login to Discord
+
     await client.login(process.env.DISCORD_TOKEN);
     
   } catch (error) {
