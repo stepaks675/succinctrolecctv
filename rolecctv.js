@@ -352,7 +352,6 @@ function setupAutomaticSnapshots(db) {
 
 export {
   TARGET_ROLES,
-  CHANNEL_IDS,
   initDatabase,
   hasTargetRole,
   getUserRoles,
