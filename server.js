@@ -29,7 +29,6 @@ const apiKeyAuth = (req, res, next) => {
 // Import your existing bot code
 import { 
   TARGET_ROLES, 
-  CHANNEL_IDS, 
   initDatabase, 
   processMessage, 
   createSnapshot, 
