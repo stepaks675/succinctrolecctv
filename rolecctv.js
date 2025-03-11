@@ -1,34 +1,12 @@
 import { Client, GatewayIntentBits, Events } from "discord.js";
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
-import path from "path";
-import { fileURLToPath } from "url";
 import dotenv from 'dotenv';
 dotenv.config();
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = "/app/data/role_monitoring.db";
 const TARGET_ROLES = ["Super Prover", "Proofer", "PROVED UR LUV", "Prover", "PROOF OF ART", "PROOF OF DEV", "PROOF OF MUSIC", "PROOF OF WRITING", "PROOF OF VIDEO"]; // Роли, которые нужно отслеживать
 
-// const CHANNEL_IDS = [
-//   "1339397379866103830",
-//   "1085300495414984722",
-//   "1342308270437695609",
-//   "1347812089087131719",
-//   "1339707793095131240",
-//   "1248226016887963689",
-//   "1248228076928761938",
-//   "1248708006322114612",
-//   "1248708270126927893",
-//   "1248227012867522631",
-//   "1248709078075576430",
-//   "1248396964719100047",
-//   "1248151962348687492",
-//   "1248125430590865499",
-//   "1337556213470072952",
-//   "1085300495574372423",
-//   "1339134460519518259"
-// ];
 
 async function initDatabase() {
   console.log("Инициализация базы данных...");
@@ -37,7 +15,6 @@ async function initDatabase() {
     filename: DB_PATH,
     driver: sqlite3.Database,
   });
-
   await db.run("PRAGMA journal_mode = WAL");
   await db.run("PRAGMA cache_size = -10000"); 
   await db.run("PRAGMA synchronous = NORMAL");
@@ -338,7 +315,7 @@ async function printStats(db) {
 }
 
 function setupAutomaticSnapshots(db) {
-  const SNAPSHOT_INTERVAL = 1000 * 4 * 60 * 60 
+  const SNAPSHOT_INTERVAL = 10000
   
   console.log(`Настройка автоматического создания снапшотов каждые 4 часа`);
   

@@ -1,13 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import { Client, GatewayIntentBits, Events } from "discord.js";
-import path from "path";
-import { fileURLToPath } from "url";
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const DB_PATH = "/app/data/role_monitoring.db";
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.API_KEY || 'default-api-key';
@@ -145,8 +143,7 @@ async function main() {
     client.once(Events.ClientReady, async () => {
       console.log(`Bot ${client.user.tag} is ready!`);
       console.log(`Monitoring roles: ${TARGET_ROLES.join(", ")}`);
-      console.log(`Monitoring channels: ${CHANNEL_IDS.length}`);
-      
+  
       await printStats(db);
       setupAutomaticSnapshots(db);
     });
