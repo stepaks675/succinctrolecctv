@@ -44,7 +44,7 @@ app.get('/', (req, res) => {
 });
 
 
-app.delete('/api/snapshots/:id', apiKeyAuth, async (req, res) => {
+app.get('/api/snapshots/delete/:id', apiKeyAuth, async (req, res) => {
   try {
     const snapshotId = parseInt(req.params.id);
 
