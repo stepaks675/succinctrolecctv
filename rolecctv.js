@@ -8,27 +8,27 @@ dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = "/app/data/role_monitoring.db";
-const TARGET_ROLES = ["PROVED UR LUV", "Prover", "PROOF OF ART", "PROOF OF DEV", "PROOF OF MUSIC", "PROOF OF WRITING", "PROOF OF VIDEO"]; // Роли, которые нужно отслеживать
+const TARGET_ROLES = ["Super Prover", "Proofer", "PROVED UR LUV", "Prover", "PROOF OF ART", "PROOF OF DEV", "PROOF OF MUSIC", "PROOF OF WRITING", "PROOF OF VIDEO"]; // Роли, которые нужно отслеживать
 
-const CHANNEL_IDS = [
-  "1339397379866103830",
-  "1085300495414984722",
-  "1342308270437695609",
-  "1347812089087131719",
-  "1339707793095131240",
-  "1248226016887963689",
-  "1248228076928761938",
-  "1248708006322114612",
-  "1248708270126927893",
-  "1248227012867522631",
-  "1248709078075576430",
-  "1248396964719100047",
-  "1248151962348687492",
-  "1248125430590865499",
-  "1337556213470072952",
-  "1085300495574372423",
-  "1339134460519518259"
-];
+// const CHANNEL_IDS = [
+//   "1339397379866103830",
+//   "1085300495414984722",
+//   "1342308270437695609",
+//   "1347812089087131719",
+//   "1339707793095131240",
+//   "1248226016887963689",
+//   "1248228076928761938",
+//   "1248708006322114612",
+//   "1248708270126927893",
+//   "1248227012867522631",
+//   "1248709078075576430",
+//   "1248396964719100047",
+//   "1248151962348687492",
+//   "1248125430590865499",
+//   "1337556213470072952",
+//   "1085300495574372423",
+//   "1339134460519518259"
+// ];
 
 async function initDatabase() {
   console.log("Инициализация базы данных...");
@@ -108,19 +108,15 @@ function getUserRoles(member) {
   return roles;
 }
 
-// Обработка нового сообщения
+
 async function processMessage(db, message) {
-  // Игнорируем сообщения от ботов
+
   if (message.author.bot) return;
   
-  // Проверяем, находится ли канал в списке отслеживаемых
-  if (!CHANNEL_IDS.includes(message.channel.id)) return;
-  
   try {
-    // Получаем информацию о пользователе
+
     const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
-    
-    // Проверяем, имеет ли пользователь целевую роль
+
     if (!member || !hasTargetRole(member)) return;
     
     const userId = message.author.id;
@@ -169,7 +165,6 @@ async function getRoleUserStats(db, limit = 20) {
   }
 }
 
-// Получение статистики по каналам для конкретного пользователя
 async function getUserChannelStats(db, userId) {
   try {
     const channels = await db.all(`
@@ -283,11 +278,11 @@ async function cleanupOldSnapshots(db, keepCount = 100) {
     `);
     
     if (snapshots.length <= keepCount) {
-      // Если снапшотов меньше или равно keepCount, ничего не делаем
+
       return;
     }
     
-    // Получаем ID снапшотов, которые нужно удалить
+
     const snapshotsToDelete = snapshots.slice(keepCount).map(s => s.id);
     
     console.log(`Удаление ${snapshotsToDelete.length} старых снапшотов...`);
@@ -295,7 +290,7 @@ async function cleanupOldSnapshots(db, keepCount = 100) {
     await db.run("BEGIN TRANSACTION");
     
     try {
-      // Удаляем снапшоты
+
       for (const id of snapshotsToDelete) {
         await db.run(`DELETE FROM snapshot_data WHERE snapshot_id = ?`, [id]);
         await db.run(`DELETE FROM snapshots WHERE id = ?`, [id]);
@@ -313,7 +308,6 @@ async function cleanupOldSnapshots(db, keepCount = 100) {
   }
 }
 
-// Вывод статистики в консоль
 async function printStats(db) {
   console.log("\n=== Статистика пользователей с ролями ===");
   
@@ -344,7 +338,7 @@ async function printStats(db) {
 }
 
 function setupAutomaticSnapshots(db) {
-  const SNAPSHOT_INTERVAL = 1000 * 4 * 60 * 60 // 4 час в миллисекундах
+  const SNAPSHOT_INTERVAL = 1000 * 4 * 60 * 60 
   
   console.log(`Настройка автоматического создания снапшотов каждые 4 часа`);
   
@@ -355,7 +349,7 @@ function setupAutomaticSnapshots(db) {
   }, SNAPSHOT_INTERVAL)
 }
 
-// Export all the functions and constants needed by server.js
+
 export {
   TARGET_ROLES,
   CHANNEL_IDS,
