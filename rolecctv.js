@@ -308,7 +308,7 @@ function setupAutomaticSnapshots(db) {
     let initialDelay = 0;
     
     if (lastSnapshotTime) {
-      const now = new Date(Date.now());
+      const now = new Date(Date.now() - (1 * 60 * 60 * 1000)); 
       const timeSinceLastSnapshot = now - lastSnapshotTime;
       
       if (timeSinceLastSnapshot < SNAPSHOT_INTERVAL) {
