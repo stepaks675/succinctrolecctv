@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import { Client, GatewayIntentBits, Events } from "discord.js";
 import dotenv from 'dotenv';
-
 dotenv.config();
 
 
@@ -31,8 +30,6 @@ import {
   initDatabase, 
   processMessage, 
   createSnapshot, 
-  cleanupOldSnapshots, 
-  printStats, 
   setupAutomaticSnapshots 
 } from './rolecctv.js';
 
@@ -192,7 +189,7 @@ async function main() {
       console.log(`Bot ${client.user.tag} is ready!`);
       console.log(`Monitoring roles: ${TARGET_ROLES.join(", ")}`);
   
-      await printStats(db);
+
       setupAutomaticSnapshots(db);
     });
     
@@ -211,9 +208,7 @@ async function main() {
     
   
     process.on('SIGINT', async () => {
-      console.log('Received termination signal, creating final snapshot...');
-      await createSnapshot(db);
-      console.log('Shutting down...');
+      console.log('Received termination signal...');
       client.destroy();
       process.exit(0);
     });

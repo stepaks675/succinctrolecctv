@@ -1,11 +1,10 @@
-import { Client, GatewayIntentBits, Events } from "discord.js";
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
 import dotenv from 'dotenv';
 dotenv.config();
 
 const DB_PATH = "/app/data/role_monitoring.db";
-const TARGET_ROLES = ["Super Prover", "Proofer", "PROVED UR LUV", "Prover", "PROOF OF ART", "PROOF OF DEV", "PROOF OF MUSIC", "PROOF OF WRITING", "PROOF OF VIDEO"]; // Роли, которые нужно отслеживать
+const TARGET_ROLES = ["Super Prover", "Proofer", "PROVED UR LUV", "Prover", "PROOF OF ART", "PROOF OF DEV", "PROOF OF MUSIC", "PROOF OF WRITING", "PROOF OF VIDEO", "Proof Verified"]; // Роли, которые нужно отслеживать
 
 
 async function initDatabase() {
@@ -247,7 +246,6 @@ async function createSnapshot(db) {
 
 async function cleanupOldSnapshots(db, keepCount = 100) {
   try {
-
     const snapshots = await db.all(`
       SELECT id
       FROM snapshots
@@ -258,7 +256,6 @@ async function cleanupOldSnapshots(db, keepCount = 100) {
 
       return;
     }
-    
 
     const snapshotsToDelete = snapshots.slice(keepCount).map(s => s.id);
     
@@ -285,45 +282,61 @@ async function cleanupOldSnapshots(db, keepCount = 100) {
   }
 }
 
-async function printStats(db) {
-  console.log("\n=== Статистика пользователей с ролями ===");
-  
-  const users = await getRoleUserStats(db);
-  
-  if (users.length === 0) {
-    console.log("Нет данных о пользователях с целевыми ролями");
-  } else {
-    console.log(`Топ-${users.length} пользователей по активности:`);
+async function getLastSnapshotTime(db) {
+  try {
+    const lastSnapshot = await db.get(`
+      SELECT created_at
+      FROM snapshots
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
     
-    for (const [index, user] of users.entries()) {
-      console.log(`${index + 1}. ${user.username} [${user.roles}]`);
-      console.log(`   Всего: ${user.total_messages} сообщений`);
-      console.log(`   Последняя активность: ${new Date(user.last_seen).toLocaleString()}`);
-      
-      const channels = await getUserChannelStats(db, user.user_id);
-      
-      if (channels.length > 0) {
-        console.log(`   Активность по каналам:`);
-        for (const [chIndex, channel] of channels.entries()) {
-          console.log(`     ${chIndex + 1}. ${channel.channel_name}: ${channel.message_count} сообщений`);
-        }
-      }
-      
-      console.log("");
-    }
+    return lastSnapshot ? new Date(lastSnapshot.created_at + 'Z') : null; // Adding 'Z' to treat the date as UTC
+  } catch (error) {
+    console.error(`Ошибка при получении времени последнего снапшота: ${error.message}`);
+    return null;
   }
 }
 
 function setupAutomaticSnapshots(db) {
-  const SNAPSHOT_INTERVAL = 1000 * 4 * 60 * 60 
+  const SNAPSHOT_INTERVAL = 1000 * 4 * 60 * 60
   
   console.log(`Настройка автоматического создания снапшотов каждые 4 часа`);
   
-  setInterval(async () => {
-    console.log(`Запланированное создание снапшота...`);
-    await createSnapshot(db);
-    await cleanupOldSnapshots(db);
-  }, SNAPSHOT_INTERVAL)
+  (async () => {
+    const lastSnapshotTime = await getLastSnapshotTime(db);
+    let initialDelay = 0;
+    
+    if (lastSnapshotTime) {
+      const now = new Date(Date.now());
+      const timeSinceLastSnapshot = now - lastSnapshotTime;
+      
+      if (timeSinceLastSnapshot < SNAPSHOT_INTERVAL) {
+        initialDelay = SNAPSHOT_INTERVAL - timeSinceLastSnapshot;
+        console.log(`Последний снепшот был создан ${Math.floor(timeSinceLastSnapshot / (1000 * 60))} минут назад. Следующий снепшот через ${Math.floor(initialDelay / (1000 * 60))} минут`);
+      } else {
+        console.log(`Последний снепшот был создан более 4 часов назад. Создаем новый снепшот сейчас`);
+      }
+    } else {
+      console.log(`Снепшоты не найдены. Создаем первый снепшот`);
+      await createSnapshot(db);
+      await cleanupOldSnapshots(db);
+    }
+    
+    setTimeout(() => {
+      setInterval(async () => {
+        console.log(`Запланированное создание снапшота...`);
+        await createSnapshot(db);
+        await cleanupOldSnapshots(db);
+      }, SNAPSHOT_INTERVAL);
+      (async () => {
+        console.log(`Запланированное создание снапшота...`);
+        await createSnapshot(db);
+        await cleanupOldSnapshots(db);
+      })();
+    }, initialDelay);
+    
+  })();
 }
 
 
@@ -337,6 +350,5 @@ export {
   getUserChannelStats,
   createSnapshot,
   cleanupOldSnapshots,
-  printStats,
   setupAutomaticSnapshots
 };
