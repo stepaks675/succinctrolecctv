@@ -100,7 +100,10 @@ async function processMessage(db, message) {
     const roles = getUserRoles(member);
     const channelId = message.channel.id;
     const channelName = message.channel.name;
-    
+
+    console.log(`received message from ${username} in ${channelName}`);
+    // await updateUserRolesInChannelActivity(db, userId, roles);
+
     await db.run(`
       INSERT INTO channel_activity (user_id, username, roles, channel_id, channel_name, message_count, last_message)
       VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
@@ -112,7 +115,6 @@ async function processMessage(db, message) {
         last_message = CURRENT_TIMESTAMP
     `, [userId, username, roles, channelId, channelName, username, roles, channelName]);
     
-    console.log(`[${new Date().toLocaleTimeString()}] Пользователь ${username} отправил сообщение в канале ${channelName}`);
     
   } catch (error) {
     console.error(`Ошибка при обработке сообщения: ${error.message}`);
@@ -298,7 +300,7 @@ async function getLastSnapshotTime(db) {
   }
 }
 
-function setupAutomaticSnapshots(db) {
+function setupAutomaticSnapshots(db, client) {
   const SNAPSHOT_INTERVAL = 1000 * 4 * 60 * 60
   
   console.log(`Настройка автоматического создания снапшотов каждые 4 часа`);
@@ -308,7 +310,7 @@ function setupAutomaticSnapshots(db) {
     let initialDelay = 0;
     
     if (lastSnapshotTime) {
-      const now = new Date(Date.now() - (1 * 60 * 60 * 1000)); 
+      const now = new Date(Date.now() - (60 * 60 * 1000)); 
       const timeSinceLastSnapshot = now - lastSnapshotTime;
       
       if (timeSinceLastSnapshot < SNAPSHOT_INTERVAL) {
@@ -325,12 +327,14 @@ function setupAutomaticSnapshots(db) {
     
     setTimeout(() => {
       setInterval(async () => {
-        console.log(`Запланированное создание снапшота...`);
+        console.log(`Запланированное создание снапшота и обновление ролей...`);
+        await updateAllUserRolesInChannelActivity(db, client);
         await createSnapshot(db);
         await cleanupOldSnapshots(db);
       }, SNAPSHOT_INTERVAL);
       (async () => {
-        console.log(`Запланированное создание снапшота...`);
+        console.log(`Запланированное создание снапшота и обновление ролей...`);
+        await updateAllUserRolesInChannelActivity(db, client);
         await createSnapshot(db);
         await cleanupOldSnapshots(db);
       })();
@@ -339,6 +343,38 @@ function setupAutomaticSnapshots(db) {
   })();
 }
 
+async function updateUserRolesInChannelActivity(db, userId, roles) {
+  try {
+    await db.run(`
+      UPDATE channel_activity
+      SET roles = ?
+      WHERE user_id = ?
+    `, [roles, userId]);
+  } catch (error) {
+    console.error(`Ошибка при обновлении ролей пользователя ${userId} в channel_activity: ${error.message}`);
+  }
+}
+
+async function updateAllUserRolesInChannelActivity(db, client) {
+  try {
+    const users = await db.all(`SELECT DISTINCT user_id FROM channel_activity`);
+    const guild = await client.guilds.fetch('1085300494408355901');
+    for (const user of users) {
+      const member = await guild.members.fetch(user.user_id).catch(() => null); 
+      await new Promise(resolve => setTimeout(resolve, 10));
+      if (member) {
+        const roles = getUserRoles(member); 
+        await updateUserRolesInChannelActivity(db, user.user_id, roles);
+      } else {
+        console.warn(`Пользователь с ID ${user.user_id} не найден в гильдии.`);
+      }
+    }
+
+    console.log("Обновление ролей для всех пользователей завершено.");
+  } catch (error) {
+    console.error(`Ошибка при обновлении ролей для всех пользователей: ${error.message}`);
+  }
+}
 
 export {
   TARGET_ROLES,

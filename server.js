@@ -29,7 +29,6 @@ import {
   TARGET_ROLES, 
   initDatabase, 
   processMessage, 
-  createSnapshot, 
   setupAutomaticSnapshots 
 } from './rolecctv.js';
 
@@ -174,7 +173,6 @@ async function main() {
   try {
 
     db = await initDatabase();
-    
 
     const client = new Client({
       intents: [
@@ -188,9 +186,7 @@ async function main() {
     client.once(Events.ClientReady, async () => {
       console.log(`Bot ${client.user.tag} is ready!`);
       console.log(`Monitoring roles: ${TARGET_ROLES.join(", ")}`);
-  
-
-      setupAutomaticSnapshots(db);
+      setupAutomaticSnapshots(db, client);
     });
     
     client.on(Events.MessageCreate, async (message) => {
